@@ -11,14 +11,11 @@ import exceptions.TubeFullException;
 
 public class MyMailPool implements IMailPool {
 	private static final int MAX_WEIGHT = 2000;
-	private static final int MAX_TAKE = 4;
-	private Robot[] robotArmy;  // There's only three of these.
-	private int numberOfRobots = 3;
+	private Robot[] robotArmy = new Robot[3];
 	
 	private PriorityQueue<MailItem> heavyItems;
 	private PriorityQueue<MailItem> lightItems;
 	private PriorityQueue<PriorityMailItem> priorityItems;
-	private PriorityMailItem currentPriority;
 	
 	public MyMailPool() {
 		
@@ -28,19 +25,13 @@ public class MyMailPool implements IMailPool {
 				return mail1.getDestFloor() - mail2.getDestFloor();
 			}
 		});
-		lightItems = new PriorityQueue<>(new Comparator<MailItem>() {
-			@Override
-			public int compare(MailItem mail1, MailItem mail2) {
-				return mail1.getDestFloor() - mail2.getDestFloor();
-			}
-		});
+		lightItems = new PriorityQueue<>(heavyItems);
 		priorityItems = new PriorityQueue<>(new Comparator<PriorityMailItem>() {
 			@Override
 			public int compare(PriorityMailItem mail1, PriorityMailItem mail2) {
 				return mail2.getPriorityLevel() - mail1.getPriorityLevel();
 			}
 		});
-		robotArmy = new Robot[numberOfRobots];
 	}
 
 	@Override
@@ -49,6 +40,7 @@ public class MyMailPool implements IMailPool {
 	 * on the weight and priority of the mail item
 	 */
 	public void addToPool(MailItem mailItem) {
+		
 		// Check whether mail item has any priority on it
 		if (mailItem instanceof PriorityMailItem) {
 			priorityItems.add((PriorityMailItem) mailItem);
@@ -69,44 +61,30 @@ public class MyMailPool implements IMailPool {
 	 */
 	public void step() {
 		
-		// Check if there are any priority mail items and send any robots
-		// available to deliver the mail items - Assumes each priority mail is
-		// processed once at a time
-		if (getPriorityItemSize() > 0) {
-			currentPriority = priorityItems.poll();
-			int robotNumber = chooseAppropriateRobot(currentPriority);
-			
-			// Give robot the mail item
-			try {
-				giveRobotMail(currentPriority, robotNumber);
-			} catch (TubeFullException e) {
-				e.printStackTrace();
+		// Check if each robot is able to deliver some mail items
+		for (int i=0; i<robotArmy.length; i++) {
+			if (robotArmy[i] != null) {
+				fillStorage(robotArmy[i]);
 			}
-			
-			// Check if there are any mail items conveniently close to the
-			// floor of the priority mail item
-			if (robotArmy[robotNumber].isStrong()) {
-				collectOtherMail(currentPriority.getDestFloor(), robotNumber, heavyItems);
-			}
-			collectOtherMail(currentPriority.getDestFloor(), robotNumber, lightItems);
 		}
-		
 	}
 
 	@Override
 	public void registerWaiting(Robot robot) {
-		for (Robot currentRobot : robotArmy) {
-			if (currentRobot == null) {
-				currentRobot = robot;
+		for (int i=0; i<robotArmy.length; i++) {
+			if (robotArmy[i] == null) {
+				robotArmy[i] = robot;
+				break;
 			}
 		}
 	}
 
 	@Override
 	public void deregisterWaiting(Robot robot) {
-		for (Robot currentRobot : robotArmy) {
-			if (currentRobot.equals(robot)) {
-				currentRobot = null;
+		for (int i=0; i<robotArmy.length; i++) {
+			if (robotArmy[i] == robot) {
+				robotArmy[i] = null;
+				break;
 			}
 		}
 	}
@@ -115,46 +93,55 @@ public class MyMailPool implements IMailPool {
 		return new Integer(priorityItems.size());
 	}
 	
-	/**
-	 * Chooses the robot that will be able to deliver the mail item and returns
-	 * the index of that robot
-	 * @param mailitem
-	 * @return
-	 */
-	public int chooseAppropriateRobot(MailItem mailItem) {
-		if (mailItem.getWeight() <= MAX_WEIGHT) {
-			// Weight isn't too heavy, any robot will do
-			for (int i=0; i<robotArmy.length; i++) {
-				if (robotArmy[i] != null) {
-					return i;
-				}
-			}
-		} else {
-			for (int i=0; i<robotArmy.length; i++) {
-				if (robotArmy[i] != null && robotArmy[i].isStrong()) {
-					return i;
-				}
-			}
-		}
-		// No robots available for the task
-		return -1;
+	public int getLightItemSize() {
+		return new Integer(lightItems.size());
 	}
 	
-	/**
-	 * Fill up the storage tube of the robot with some mail
-	 * @param mail
-	 * @param robotNumber
-	 * @throws TubeFullException 
-	 */
-	public void giveRobotMail(MailItem mail, int robotNumber) throws TubeFullException {
-		StorageTube tube = robotArmy[robotNumber].getTube();
-		if (!tube.isFull()) {
-			tube.addItem(mail);
+	public int getHeavyItemSize() {
+		return new Integer(heavyItems.size());
+	}
+	public void fillStorage(Robot currentRobot) {
+		StorageTube tube = currentRobot.getTube();
+		if (currentRobot.isStrong() == true) {
+			while (!tube.isFull() && getPriorityItemSize() > 0) {
+				try {
+					tube.addItem(priorityItems.poll());
+				} catch (TubeFullException e) {
+					e.printStackTrace();
+				}
+			}
+			while (!tube.isFull() && getHeavyItemSize() > 0) {
+				try {
+					tube.addItem(heavyItems.poll());
+				} catch (TubeFullException e) {
+					e.printStackTrace();
+				}
+			}
+			while (!tube.isFull() && getLightItemSize() > 0) {
+				try {
+					tube.addItem(lightItems.poll());
+				} catch (TubeFullException e) {
+					e.printStackTrace();
+				}
+			}
+			currentRobot.dispatch();
+		}
+		else {
+			while (!tube.isFull() && getPriorityItemSize() > 0 && priorityItems.peek().getWeight() <= MAX_WEIGHT) {
+				try {
+					tube.addItem(priorityItems.poll());
+				} catch (TubeFullException e) {
+					e.printStackTrace();
+				}
+			}
+			while (!tube.isFull() && getLightItemSize() > 0) {
+				try {
+					tube.addItem(lightItems.poll());
+				} catch (TubeFullException e) {
+					e.printStackTrace();
+				}
+			}
+			currentRobot.dispatch();
 		}
 	}
-	
-	public void collectOtherMail(int floorNumber, int robotNumber, PriorityQueue<MailItem> items) {
-		
-	}
-
 }
