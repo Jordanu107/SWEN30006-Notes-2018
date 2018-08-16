@@ -11,14 +11,18 @@ import exceptions.TubeFullException;
 
 public class MyMailPool implements IMailPool {
 	private static final int MAX_WEIGHT = 2000;
-	private Robot[] robotArmy = new Robot[3];
+	private static final int NUMBER_OF_ROBOTS = 3;
+	private Robot[] robotArmy;
 	
 	private PriorityQueue<MailItem> heavyItems;
 	private PriorityQueue<MailItem> lightItems;
 	private PriorityQueue<PriorityMailItem> priorityItems;
 	
+	/**
+	 * Create empty priority queues for each type of mail item and an array
+	 * for the robots
+	 */
 	public MyMailPool() {
-		
 		heavyItems = new PriorityQueue<>(new Comparator<MailItem>() {
 			@Override
 			public int compare(MailItem mail1, MailItem mail2) {
@@ -26,12 +30,14 @@ public class MyMailPool implements IMailPool {
 			}
 		});
 		lightItems = new PriorityQueue<>(heavyItems);
+		
 		priorityItems = new PriorityQueue<>(new Comparator<PriorityMailItem>() {
 			@Override
 			public int compare(PriorityMailItem mail1, PriorityMailItem mail2) {
 				return mail2.getPriorityLevel() - mail1.getPriorityLevel();
 			}
 		});
+		robotArmy = new Robot[NUMBER_OF_ROBOTS];
 	}
 
 	@Override
@@ -57,11 +63,11 @@ public class MyMailPool implements IMailPool {
 	@Override
 	/**
 	 * Invoked once per frame reference of time - checks for mail items and
-	 * dispatches robots to deliver the items
+	 * sends robots to deliver the items
 	 */
 	public void step() {
 		
-		// Check if each robot is able to deliver some mail items
+		// Check if each robot is available to deliver some mail items
 		for (int i=0; i<robotArmy.length; i++) {
 			if (robotArmy[i] != null) {
 				fillStorage(robotArmy[i]);
@@ -89,59 +95,71 @@ public class MyMailPool implements IMailPool {
 		}
 	}
 	
-	public int getPriorityItemSize() {
-		return new Integer(priorityItems.size());
-	}
-	
-	public int getLightItemSize() {
-		return new Integer(lightItems.size());
-	}
-	
-	public int getHeavyItemSize() {
-		return new Integer(heavyItems.size());
-	}
+	/**
+	 * Fill the robot's storage tube with as much mail items as possible,
+	 * prioritising priority mail items and mail items closer to the floor
+	 * @param currentRobot
+	 */
 	public void fillStorage(Robot currentRobot) {
 		StorageTube tube = currentRobot.getTube();
-		if (currentRobot.isStrong() == true) {
-			while (!tube.isFull() && getPriorityItemSize() > 0) {
-				try {
-					tube.addItem(priorityItems.poll());
-				} catch (TubeFullException e) {
-					e.printStackTrace();
-				}
-			}
-			while (!tube.isFull() && getHeavyItemSize() > 0) {
-				try {
-					tube.addItem(heavyItems.poll());
-				} catch (TubeFullException e) {
-					e.printStackTrace();
-				}
-			}
-			while (!tube.isFull() && getLightItemSize() > 0) {
-				try {
-					tube.addItem(lightItems.poll());
-				} catch (TubeFullException e) {
-					e.printStackTrace();
-				}
-			}
-			currentRobot.dispatch();
+		
+		// Determine the mail items that the robot can carry and continue
+		// loading the tube until full or no more mail items to deliver
+		if (currentRobot.isStrong()) {
+			addToTube(tube, priorityItems, "strong");
+			addToTube(tube, heavyItems);
+			addToTube(tube, lightItems);
+		} else {
+			addToTube(tube, priorityItems, "weak");
+			addToTube(tube, lightItems);
 		}
-		else {
-			while (!tube.isFull() && getPriorityItemSize() > 0 && priorityItems.peek().getWeight() <= MAX_WEIGHT) {
-				try {
-					tube.addItem(priorityItems.poll());
-				} catch (TubeFullException e) {
-					e.printStackTrace();
-				}
+		currentRobot.dispatch();
+	}
+	
+	/**
+	 * Add mail items from storage into a tube while there are mail items
+	 * and the tube isn't full
+	 * @param tube
+	 * @param storage
+	 */
+	public void addToTube(StorageTube tube, PriorityQueue<MailItem> storage) {
+		while (!tube.isFull() && storage.size() > 0) {
+			try {
+				tube.addItem(storage.poll());
+			} catch (TubeFullException e) {
+				e.printStackTrace();
 			}
-			while (!tube.isFull() && getLightItemSize() > 0) {
-				try {
-					tube.addItem(lightItems.poll());
-				} catch (TubeFullException e) {
-					e.printStackTrace();
+		}
+	}
+	/**
+	 * Add priority mail items into the robot's tube until full or until there
+	 * are no more mail items in storage
+	 * @param tube
+	 * @param storage
+	 * @param robotType
+	 */
+	public void addToTube(StorageTube tube, PriorityQueue<PriorityMailItem> storage, String robotType) {
+		switch (robotType) {
+			// Strong robot - a.k.a a robot that can carry any weight of mail item
+			case "strong":
+				while (!tube.isFull() && storage.size() > 0) {
+					try {
+						tube.addItem(storage.poll());
+					} catch (TubeFullException e) {
+						e.printStackTrace();
+					}
 				}
-			}
-			currentRobot.dispatch();
+				break;
+			// Weak robot - the robot that cannot carry more than 2000g
+			case "weak":
+				while (!tube.isFull() && storage.size() > 0 && storage.peek().getWeight() <= MAX_WEIGHT) {
+					try {
+						tube.addItem(priorityItems.poll());
+					} catch (TubeFullException e) {
+						e.printStackTrace();
+					}
+				}
+				break;
 		}
 	}
 }
