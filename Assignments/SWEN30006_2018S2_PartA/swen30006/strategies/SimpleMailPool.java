@@ -35,7 +35,6 @@ public class SimpleMailPool implements IMailPool{
 			// Maybe I need to sort here as well? Bit confused now
 			nonPriorityPool.add(mailItem);
 		}
-		System.out.println("ADDTOPOOL CALLED");
 	}
 	
 	private int getNonPriorityPoolSize(int weightLimit) {
@@ -77,7 +76,6 @@ public class SimpleMailPool implements IMailPool{
 		if (robot1 != null) fillStorageTube(robot1);
 		if (robot2 != null) fillStorageTube(robot2);
 		if (robot3 != null) fillStorageTube(robot3);
-		System.out.println("Step function called");
 	}
 	
 	private void fillStorageTube(Robot robot) {
@@ -104,7 +102,6 @@ public class SimpleMailPool implements IMailPool{
 		catch(TubeFullException e){
 			e.printStackTrace();
 		}
-		System.out.println("Fill function called");
 	}
 
 	@Override
@@ -118,9 +115,7 @@ public class SimpleMailPool implements IMailPool{
 			robot3 = robot;
 		} else {
 			/* This can't happen, can it? What do I do here?!? */
-			System.out.println("Does this even get called?");
 		}
-		System.out.println("Register function called");
 	}
 
 	@Override
@@ -134,7 +129,7 @@ public class SimpleMailPool implements IMailPool{
 		} else {
 			/* This can't happen, can it? What do I do here?!? */
 		}
-		System.out.println("Deregister function called");
+		
 	}
 	// Argghhh - never really wanted to be a programmer any way ...
 
